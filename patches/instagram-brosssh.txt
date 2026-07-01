@@ -18,4 +18,4 @@
 - Remove build expired popup
 
 # Temp fix
-- Disable double tap like
+# - Disable double tap like

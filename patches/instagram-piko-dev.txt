@@ -1,2 +1,2 @@
 # Temp fix
-- Disable double tap like
+# - Disable double tap like
