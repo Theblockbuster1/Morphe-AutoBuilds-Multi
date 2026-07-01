@@ -1,0 +1,16 @@
+[
+    {
+        "name": "shim"
+    },
+    {
+        "provider": "github",
+        "user": "MorpheApp",
+        "repo": "morphe-cli",
+        "tag": "latest"
+    },
+    {
+        "provider": "gitlab",
+        "project": "inotia00/x-shim",
+        "tag": "latest"
+    }
+]
