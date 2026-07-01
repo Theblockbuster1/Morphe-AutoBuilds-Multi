@@ -1,1 +1,1 @@
-- Disable double tap to like
+- Disable double tap like
