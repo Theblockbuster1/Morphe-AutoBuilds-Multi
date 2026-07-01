@@ -1,42 +1,52 @@
 [
   {
+    "app_name": "tiktok",
+    "source": "icysymmetra",
+    "arches": ["arm64-v8a"]
+  },
+  {
+    "app_name": "youtube",
+    "source": "morphe",
+    "arches": ["arm64-v8a"]
+  },
+  {
     "app_name": "youtube-music",
     "source": "morphe",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "google-photos",
-    "source": "rookie",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "app_name": "reddit",
+    "source": "morphe",
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "cake",
-    "source": "custom-patches",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
-  },
-    {
     "app_name": "instagram",
-    "source": "piko",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "source": "piko-dev",
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "phone",
-    "source": "taknok",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "app_name": "instagram",
+    "source": "piko-dev+brosssh",
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "pokecardex",
-    "source": "almewty",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "app_name": "soundcloud",
+    "source": "Hoo",
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "messenger",
-    "source": "revanced",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "app_name": "prime-video",
+    "source": "Hoo",
+    "arches": ["arm64-v8a"]
   },
   {
-    "app_name": "tiktok",
-    "source": "morphe+icysymmetra",
-    "arches": ["arm64-v8a", "armeabi-v7a"]
+    "app_name": "proton-vpn",
+    "source": "Hoo",
+    "arches": ["arm64-v8a"]
+  },
+  {
+    "app_name": "x",
+    "source": "piko-dev+shim",
+    "arches": ["arm64-v8a"]
   }
 ]

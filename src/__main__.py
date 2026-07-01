@@ -35,10 +35,45 @@ def parse_sources(source: str) -> list[str]:
         parts = [source]
     return [part.strip() for part in parts if part.strip()]
 
+def _entry_source_key(entry: dict) -> str:
+    if entry.get("sources"):
+        return "+".join(s for s in entry["sources"] if s)
+    return (entry.get("source") or "").strip()
+
+def lookup_patch_entry(app_name: str, source_key: str) -> dict | None:
+    config_path = Path("patch-config.json")
+    if not config_path.exists():
+        return None
+    with config_path.open(encoding="utf-8") as f:
+        patch_list = json.load(f).get("patch_list", [])
+    for entry in patch_list:
+        if entry.get("app_name") == app_name and _entry_source_key(entry) == source_key:
+            return entry
+    return None
+
+def resolve_build_label(app_name: str, source_key: str, default_name: str) -> str:
+    """APK name segment between arch and version, e.g. instagram-arm64-v8a-{label}-v1.2.3.apk"""
+    env_label = getenv("BUILD_NAME", "").strip()
+    if env_label:
+        return env_label
+
+    entry = lookup_patch_entry(app_name, source_key)
+    if entry and entry.get("build_name"):
+        return str(entry["build_name"]).strip()
+
+    if "+" in source_key:
+        return source_key.replace("+", "-")
+
+    return default_name
+
 def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     """Build APK for specific architecture"""
     sources = parse_sources(source)
+    source_key = "+".join(sources)
     download_files, name, patch_files = downloader.download_required_many(sources)
+    build_label = resolve_build_label(app_name, source_key, name)
+    if build_label != name:
+        logging.info(f"🏷️  APK label: {build_label}")
 
     # Log downloaded files for debugging
     logging.info(f"📦 Downloaded {len(download_files)} files for {source}:")
@@ -320,7 +355,7 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
         # Patch succeeded -> cleanup input and sign.
         input_apk.unlink(missing_ok=True)
 
-        signed_apk = Path(f"{app_name}-{arch}-{name}-v{version}.apk")
+        signed_apk = Path(f"{app_name}-{arch}-{build_label}-v{version}.apk")
 
         apksigner = utils.find_apksigner()
         if not apksigner:
