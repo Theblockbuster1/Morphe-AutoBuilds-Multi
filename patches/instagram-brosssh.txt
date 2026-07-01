@@ -16,3 +16,6 @@
 - Hide suggested content
 - Limit feed to following profiles
 - Remove build expired popup
+
+# Temp fix
+- Disable double tap like
