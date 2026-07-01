@@ -74,6 +74,40 @@ def download_required(source: str) -> tuple[list[Path], str]:
 
     return downloaded_files, name
 
+def _patch_file_from_download(files: list[Path]) -> Path | None:
+    patch = utils.find_file(files, contains="patches", suffix=".mpp")
+    if not patch:
+        patch = utils.find_file(files, suffix=".mpp")
+    return patch
+
+def download_required_many(sources: list[str]) -> tuple[list[Path], str, list[Path]]:
+    """Download tools/patches from one or more source profiles."""
+    if len(sources) == 1:
+        files, name = download_required(sources[0])
+        patch = _patch_file_from_download(files)
+        return files, name, [patch] if patch else []
+
+    downloaded_files: list[Path] = []
+    patch_files: list[Path] = []
+    seen_names: set[str] = set()
+    seen_patches: set[Path] = set()
+    name = ""
+
+    for source in sources:
+        files, source_name = download_required(source)
+        if not name:
+            name = source_name
+        for f in files:
+            if f.name not in seen_names:
+                seen_names.add(f.name)
+                downloaded_files.append(f)
+        patch = _patch_file_from_download(files)
+        if patch and patch not in seen_patches:
+            seen_patches.add(patch)
+            patch_files.append(patch)
+
+    return downloaded_files, name, patch_files
+
 def download_from_bundle(bundle_info: dict) -> tuple[list[Path], str]:
     """Download resources from a bundle URL"""
     bundle_url = bundle_info["bundle_url"]
@@ -128,7 +162,7 @@ def download_platform(
     app_name: str,
     platform: str,
     cli: str,
-    patches: str,
+    patches: str | list[str],
     arch: str = None,
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:
@@ -187,7 +221,7 @@ def download_platform(
 def download_apkmirror(
     app_name: str,
     cli: str,
-    patches: str,
+    patches: str | list[str],
     arch: str = None,
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:
@@ -196,7 +230,7 @@ def download_apkmirror(
 def download_apkpure(
     app_name: str,
     cli: str,
-    patches: str,
+    patches: str | list[str],
     arch: str = None,
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:
@@ -205,7 +239,7 @@ def download_apkpure(
 def download_aptoide(
     app_name: str,
     cli: str,
-    patches: str,
+    patches: str | list[str],
     arch: str = None,
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:
@@ -214,7 +248,7 @@ def download_aptoide(
 def download_uptodown(
     app_name: str,
     cli: str,
-    patches: str,
+    patches: str | list[str],
     arch: str = None,
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:

@@ -442,6 +442,11 @@ def get_source_signature(source: str) -> str:
     if source in _source_sig_cache:
         return _source_sig_cache[source]
 
+    if "+" in source:
+        sig = "|".join(get_source_signature(s) for s in source.split("+") if s)
+        _source_sig_cache[source] = sig
+        return sig
+
     src_file = SOURCES_DIR / f"{source}.json"
     if not src_file.exists():
         # Case-insensitive fallback
@@ -588,10 +593,11 @@ def fetch_recommended_version(app_name: str, source: str) -> str:
     config, _platform = load_app_config(app_name)
     package = (config or {}).get("package") or ""
 
-    src_file = SOURCES_DIR / f"{source}.json"
+    probe_source = source.split("+")[0] if "+" in source else source
+    src_file = SOURCES_DIR / f"{probe_source}.json"
     if not src_file.exists():
         for f in SOURCES_DIR.glob("*.json"):
-            if f.stem.lower() == source.lower():
+            if f.stem.lower() == probe_source.lower():
                 src_file = f
                 break
 
@@ -713,6 +719,16 @@ def fetch_existing_apk_names() -> List[str]:
 # ---------------------------------------------------------------------------
 # Matrix planning
 # ---------------------------------------------------------------------------
+def resolve_sources(entry: dict) -> Tuple[List[str], str]:
+    """Return (source list, composite key) for a patch-config entry."""
+    if entry.get("sources"):
+        sources = [s for s in entry["sources"] if s]
+    else:
+        src = entry.get("source")
+        sources = [src] if src else []
+    return sources, "+".join(sources)
+
+
 def build_full_matrix() -> List[dict]:
     """Expand patch-config + arch-config into the full per-arch matrix."""
     patch_list = load_patch_config()
@@ -721,7 +737,7 @@ def build_full_matrix() -> List[dict]:
     seen = set()
     for entry in patch_list:
         app = entry.get("app_name")
-        src = entry.get("source")
+        _sources, src = resolve_sources(entry)
         if not app or not src:
             continue
         arches = arch_map.get((app, src), ["universal"])

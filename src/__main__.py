@@ -25,9 +25,20 @@ def _should_retry_with_older_version(output: str | None) -> bool:
         or "patching aborted" in t
     )
 
+def parse_sources(source: str) -> list[str]:
+    """Split a composite SOURCE value into individual source keys."""
+    if "+" in source:
+        parts = source.split("+")
+    elif "," in source:
+        parts = source.split(",")
+    else:
+        parts = [source]
+    return [part.strip() for part in parts if part.strip()]
+
 def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     """Build APK for specific architecture"""
-    download_files, name = downloader.download_required(source)
+    sources = parse_sources(source)
+    download_files, name, patch_files = downloader.download_required_many(sources)
 
     # Log downloaded files for debugging
     logging.info(f"📦 Downloaded {len(download_files)} files for {source}:")
@@ -64,6 +75,10 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
 
     logging.info(f"🔍 Detected: {'Morphe' if is_morphe else 'ReVanced'} source type")
 
+    if len(sources) > 1 and not is_morphe:
+        logging.error("❌ Multiple sources are only supported for Morphe patch bundles")
+        return None
+
     # FIND FILES BASED ON DETECTED TYPE
     if is_morphe:
         # Find Morphe files - prefer non-dev version
@@ -71,32 +86,33 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
         if not cli:
             # Fallback to any Morphe CLI
             cli = utils.find_file(download_files, contains="morphe", suffix=".jar")
-        
-        patches = utils.find_file(download_files, contains="patches", suffix=".mpp")
-        if not patches:
-            # Fallback to any .mpp file
-            patches = utils.find_file(download_files, suffix=".mpp")
     else:
         # Find ReVanced files
         cli = utils.find_file(download_files, contains="revanced-cli", suffix=".jar")
-        patches = utils.find_file(download_files, contains="patches", suffix=".rvp")
-        
-        if not patches:
+        patch_file = utils.find_file(download_files, contains="patches", suffix=".rvp")
+
+        if not patch_file:
             # Try .jar extension for patches
-            patches = utils.find_file(download_files, contains="patches", suffix=".jar")
+            patch_file = utils.find_file(download_files, contains="patches", suffix=".jar")
+        patch_files = [patch_file] if patch_file else []
 
     # Validate tools
     if not cli:
         logging.error(f"❌ CLI not found for source: {source}")
         logging.error(f"Available files: {[f.name for f in download_files]}")
         return None
-    if not patches:
+    if not patch_files:
         logging.error(f"❌ Patches not found for source: {source}")
         logging.error(f"Available files: {[f.name for f in download_files]}")
         return None
 
     logging.info(f"✅ Using CLI: {cli.name}")
-    logging.info(f"✅ Using patches: {patches.name}")
+    for patch in patch_files:
+        logging.info(f"✅ Using patches: {patch.name}")
+
+    patches_arg: str | list[str] = (
+        [str(p) for p in patch_files] if len(patch_files) > 1 else str(patch_files[0])
+    )
 
     download_methods = [
         downloader.download_apkmirror,
@@ -110,7 +126,7 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     candidates: list[str] = []
     used_method = None
     for method in download_methods:
-        input_apk, version, candidates = method(app_name, str(cli), str(patches), arch)
+        input_apk, version, candidates = method(app_name, str(cli), patches_arg, arch)
         if input_apk:
             used_method = method
             break
@@ -130,15 +146,16 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     exclude_patches = []
     include_patches = []
 
-    patches_path = Path("patches") / f"{app_name}-{source}.txt"
-    if patches_path.exists():
-        with patches_path.open('r') as patches_file:
-            for line in patches_file:
-                line = line.strip()
-                if line.startswith('-'):
-                    exclude_patches.extend(["-d", line[1:].strip()])
-                elif line.startswith('+'):
-                    include_patches.extend(["-e", line[1:].strip()])
+    for src in sources:
+        patches_path = Path("patches") / f"{app_name}-{src}.txt"
+        if patches_path.exists():
+            with patches_path.open('r') as patches_file:
+                for line in patches_file:
+                    line = line.strip()
+                    if line.startswith('-'):
+                        exclude_patches.extend(["-d", line[1:].strip()])
+                    elif line.startswith('+'):
+                        include_patches.extend(["-e", line[1:].strip()])
 
     for attempt_idx, ver in enumerate(versions_to_try):
         if attempt_idx > 0:
@@ -151,7 +168,7 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
             except Exception:
                 pass
 
-            input_apk, version, _ = used_method(app_name, str(cli), str(patches), arch, override_version=ver)
+            input_apk, version, _ = used_method(app_name, str(cli), patches_arg, arch, override_version=ver)
             if input_apk is None:
                 continue
             version = ver
@@ -241,10 +258,11 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
             if is_morphe:
                 logging.info("🔧 Using Morphe patching system...")
                 patch_error: subprocess.CalledProcessError | None = None
+                morphe_patches_args = utils._morphe_patches_args(patches_arg)
                 try:
                     morphe_cmd = [
                         "java", "-jar", str(cli),
-                        "patch", "--patches", str(patches),
+                        "patch", *morphe_patches_args,
                         "--out", str(output_apk), str(input_apk),
                         *exclude_patches, *include_patches
                     ]
@@ -257,7 +275,7 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
                     logging.info("Trying alternative Morphe command format...")
                     morphe_cmd = [
                         "java", "-jar", str(cli),
-                        "--patches", str(patches),
+                        *morphe_patches_args,
                         "--input", str(input_apk),
                         "--output", str(output_apk)
                     ]
@@ -278,14 +296,14 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
                 if is_revanced_v6_or_newer:
                     utils.run_process([
                         "java", "-jar", str(cli),
-                        "patch", "-p", str(patches), "-b",
+                        "patch", "-p", str(patch_files[0]), "-b",
                         "--out", str(output_apk), str(input_apk),
                         *exclude_patches, *include_patches
                     ], capture=True, stream=True)
                 else:
                     utils.run_process([
                         "java", "-jar", str(cli),
-                        "patch", "--patches", str(patches),
+                        "patch", "--patches", str(patch_files[0]),
                         "--out", str(output_apk), str(input_apk),
                         *exclude_patches, *include_patches
                     ], capture=True, stream=True)
