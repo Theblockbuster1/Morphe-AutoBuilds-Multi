@@ -8,7 +8,8 @@ from src import (
     session,
     uptodown,
     aptoide,
-    apkmirror
+    apkmirror,
+    github
 )
 
 def download_resource(url: str, name: str = None) -> Path:
@@ -226,6 +227,15 @@ def download_apkmirror(
     override_version: str = None,
 ) -> tuple[Path | None, str | None, list[str]]:
     return download_platform(app_name, "apkmirror", cli, patches, arch, override_version)
+
+def download_github(
+    app_name: str,
+    cli: str,
+    patches: str,
+    arch: str = None,
+    override_version: str = None,
+) -> tuple[Path | None, str | None, list[str]]:
+    return download_platform(app_name, "github", cli, patches, arch, override_version)
 
 def download_apkpure(
     app_name: str,
