@@ -5,7 +5,7 @@
     { "app_name": "youtube-music", "source": "morphe" },
     { "app_name": "reddit", "source": "morphe" },
     { "app_name": "instagram", "source": "piko-dev", "build_name": "piko" },
-    { "app_name": "instagram", "sources": ["piko-dev", "brosssh"], "build_name": "piko-distraction-free" },
+    { "app_name": "instagram", "sources": ["piko-dev", "brosssh-dev"], "build_name": "piko-distraction-free" },
     { "app_name": "soundcloud", "source": "Hoo" },
     { "app_name": "prime-video", "source": "Hoo" },
     { "app_name": "proton-vpn", "source": "Hoo" },
