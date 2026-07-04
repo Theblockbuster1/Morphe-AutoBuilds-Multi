@@ -66,6 +66,34 @@ def resolve_build_label(app_name: str, source_key: str, default_name: str) -> st
 
     return default_name
 
+def _load_patch_rules(app_name: str, src: str) -> tuple[list[str], list[str]]:
+    """Load -d/-e flag pairs from patches/{app_name}-{src}.txt for one source."""
+    exclude: list[str] = []
+    include: list[str] = []
+    patches_path = Path("patches") / f"{app_name}-{src}.txt"
+    if not patches_path.exists():
+        return exclude, include
+    with patches_path.open(encoding="utf-8") as patches_file:
+        for line in patches_file:
+            line = line.strip()
+            if line.startswith("-"):
+                exclude.extend(["-d", line[1:].strip()])
+            elif line.startswith("+"):
+                include.extend(["-e", line[1:].strip()])
+    return exclude, include
+
+def _morphe_interleaved_patch_args(
+    sources: list[str], patch_files: list[Path], app_name: str
+) -> list[str]:
+    """Build Morphe patch args with per-bundle -e/-d scoped to each --patches."""
+    args: list[str] = []
+    for src, patch_file in zip(sources, patch_files):
+        args.extend(["--patches", str(patch_file)])
+        exclude, include = _load_patch_rules(app_name, src)
+        args.extend(exclude)
+        args.extend(include)
+    return args
+
 def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     """Build APK for specific architecture"""
     sources = parse_sources(source)
@@ -183,15 +211,15 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
     include_patches = []
 
     for src in sources:
-        patches_path = Path("patches") / f"{app_name}-{src}.txt"
-        if patches_path.exists():
-            with patches_path.open('r') as patches_file:
-                for line in patches_file:
-                    line = line.strip()
-                    if line.startswith('-'):
-                        exclude_patches.extend(["-d", line[1:].strip()])
-                    elif line.startswith('+'):
-                        include_patches.extend(["-e", line[1:].strip()])
+        exclude, include = _load_patch_rules(app_name, src)
+        exclude_patches.extend(exclude)
+        include_patches.extend(include)
+
+    morphe_patch_args = (
+        _morphe_interleaved_patch_args(sources, patch_files, app_name)
+        if is_morphe
+        else utils._morphe_patches_args(patches_arg)
+    )
 
     for attempt_idx, ver in enumerate(versions_to_try):
         if attempt_idx > 0:
@@ -294,26 +322,21 @@ def run_build(app_name: str, source: str, arch: str = "universal") -> str:
             if is_morphe:
                 logging.info("🔧 Using Morphe patching system...")
                 patch_error: subprocess.CalledProcessError | None = None
-                morphe_patches_args = utils._morphe_patches_args(patches_arg)
                 try:
                     morphe_cmd = [
                         "java", "-jar", str(cli),
-                        "patch", *morphe_patches_args,
+                        "patch", *morphe_patch_args,
                         "--out", str(output_apk), str(input_apk),
-                        *exclude_patches, *include_patches
                     ]
                     utils.run_process(morphe_cmd, capture=True, stream=True)
                 except subprocess.CalledProcessError as e:
-                    # Remember the original failure so the retry logic below can
-                    # decide whether to fall back to an older version. We still
-                    # try the alternative argument format as a best-effort.
                     patch_error = e
                     logging.info("Trying alternative Morphe command format...")
                     morphe_cmd = [
                         "java", "-jar", str(cli),
-                        *morphe_patches_args,
+                        *morphe_patch_args,
                         "--input", str(input_apk),
-                        "--output", str(output_apk)
+                        "--output", str(output_apk),
                     ]
                     try:
                         utils.run_process(morphe_cmd, capture=True, stream=True)
